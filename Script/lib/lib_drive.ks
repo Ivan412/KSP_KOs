@@ -1,4 +1,4 @@
-//VERSION 0.4
+//VERSION 0.5
 //===============================ФУНКЦИИ==========================
 //это библиотека для движений роверов
 
@@ -12,7 +12,6 @@ function _init_lib_drive{
 
 function _target_type_ok{
     parameter targ.
-
     if targ:istype("vessel") or targ:istype("geocoordinates"){
         return true.
     }
@@ -36,43 +35,44 @@ function _speed_sign{
 
 //вычисляет значение скорости при приближении, по формуле y=kx+b
 function _closing_speed{
-    parameter targ.						//цель
+    parameter targ.					  	//цель
     parameter distance.					//дистанция приближения
-    parameter speed.					//желаемое превышение скорости
+    parameter speed.				  	//желаемое превышение скорости
 
     local ds is 0.
     local targ_gs is 0.
-    local maxspeed is 25.					//максимальная скорость. если цель движется быстрее(прямо от нас), мы ее не догоним
+    local maxspeed is 25.					//максимальная скорость. если цель движется
+                                  //быстрее(прямо от нас), мы ее не догоним
 
-								//устанавливаем локальные переменные в зависимости от типа 
+								//устанавливаем локальные переменные в зависимости от типа
     if targ:istype("vessel"){
-        set ds to max(ship:groundspeed - targ:groundspeed, 0).	//разница скоростей, если цель быстрее, жмем на педаль )
+        //разница скоростей, если цель быстрее, жмем на педаль )
+        set ds to max(ship:groundspeed - targ:groundspeed, 0).
         set targ_gs to targ:groundspeed.			//наземная скорость цели
     }
     else if targ:istype("geocoordinates"){
-        set ds to ship:groundspeed.				//разница скоростей = нашей скорости, тк геокоординаты не могут двигаться
-        set targ_gs to 0.					//тут и так понятно
+        //разница скоростей = нашей скорости, тк геокоординаты не могут двигаться
+        set ds to ship:groundspeed.
+        set targ_gs to 0.
     }
     else{
         return 0.
     }
-
     local k is (ds - 1) / (ds * 2).				//k
     local x is targ:distance - distance.		//x
-
 
 								//если мы ближе чем планировали, сравниваем скорости.
     if targ:distance < distance{
         return round(targ_gs, 1).
     }
-								//если до требуемой дальности осталось меньше чем две скорости превышения 
-								//уменьшаем скорость по формуле y=kx+b, где скорость превышения(y) 
-								//вычисляется из: k - коэффициент, x - расстояние до требуемой 
-								//дистанции, b = 1.   
+								//если до требуемой дальности осталось меньше чем две скорости превышения
+								//уменьшаем скорость по формуле y=kx+b, где скорость превышения(y)
+								//вычисляется из: k - коэффициент, x - расстояние до требуемой
+								//дистанции, b = 1.
     else if targ:distance > distance and targ:distance < distance + 2 * ds{
         return round(k * x + 1, 1).
     }
-								//если до требуемой дальности до цели больше, чем 2 скорости превышения, 
+								//если до требуемой дальности до цели больше, чем 2 скорости превышения,
 								//едем с желаемой скоростью превышения или максимальной
     else if targ:distance > 2 * ds + distance{
         return round(min((targ_gs + speed), maxspeed), 1).
@@ -83,33 +83,38 @@ function _closing_speed{
 //функция добавления точек в маршрут.
 function route_add_wp{
     parameter route_l.					//список точек маршрута
-    parameter targ.					//цель
-    parameter speed is 25.				//превышение скорости над целью
-    parameter distance is 20.				//дистанция на которой скорость становится равна скорости цели
-    parameter follow is false.				//нужно ли следавать за целью, если изменились ее координаты
+    parameter targ.					    //цель
+    parameter speed is 25.			//превышение скорости над целью
+    parameter distance is 20.		//дистанция на которой скорость становится как у цели
+    parameter follow is false.	//нужно ли следавать за целью
 
-    local wp is lexicon().		//точка маршрута. словарь. доступ по ключам: "targ": ссылка на функцию, возвращает место, куда 
-					//едем, "speed": желаемое превышение скорости, "distance": расстояние при достижении которого 
-					//происходит переключение на следующую точку маршрута или остановка(если точек больше нет), 
-					//"follow": bool если true, то мы едем за целью. переключения на следующую точку маршрута не 
-					//будет, "on_way": bool выполняется ли текущая точка маршрута .
+    local wp is lexicon().  //точка маршрута. словарь. доступ по ключам:
+                            //"targ": ссылка на функцию, возвращает место, куда едем,
+					                  //"speed": желаемое превышение скорости,
+                            //"distance": расстояние при достижении которого
+					                  //происходит переключение на следующую точку маршрута
+                            //или остановка(если точек больше нет),
+					                  //"follow": bool если true, то мы едем за целью.
+					                  //"on_way": bool выполняется ли текущая точка маршрута .
 
     if not _target_type_ok(targ){
         print("Wrong type of target!").
         return route_l.
     }
-    set wp["targ"] to targ.						//устанавливаем цель
-    set wp["speed"] to _closing_speed@:bind(targ, distance, speed).	//устанавливаем желаемое превышение скорости над целью
-    set wp["distance"] to max(distance, 20).				//устанавливаем желаемую дистанцию(точность) до цели
-    if wp["targ"]:istype("vessel"){					//устанавливаем флаг приследования
-        set wp["follow"] to follow.	
+    set wp["targ"] to targ.					  //устанавливаем цель
+    //устанавливаем желаемое превышение скорости над целью
+    set wp["speed"] to _closing_speed@:bind(targ, distance, speed).
+    //устанавливаем желаемую дистанцию(точность) до цели
+    set wp["distance"] to max(distance, 20).
+    if wp["targ"]:istype("vessel"){	  //устанавливаем флаг следования
+        set wp["follow"] to follow.
     }
     else{
         set wp["follow"] to false.
     }
-    set wp["on_way"] to false.						//устанавливаем флаг текущей точки
+    set wp["on_way"] to false.				//устанавливаем флаг текущей точки
 
-    route_l:add(wp).							//добавляем waypoint в очередь
+    route_l:add(wp).							    //добавляем waypoint в очередь
     return route_l.
 }
 
@@ -136,7 +141,7 @@ function drive{
         pid_change(pids, "cource", -1).
         brakes on.
         return route_l.
-    } 
+    }
 								//если мы не достигли точки, или она отдалилась отключаем тормоз
     else if route_l[0]["targ"]:distance > route_l[0]["distance"]{
         brakes off.
@@ -160,4 +165,3 @@ _init_lib_drive().
 
 
 //===============================ОСНОВНОЙ ЦИКЛ====================
-
