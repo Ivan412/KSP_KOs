@@ -40,8 +40,8 @@ function _closing_speed{
     local maxspeed is 25.				//software speed limit
 
     if targ:istype("vessel"){
-        set ds to max(ship:groundspeed - targ:groundspeed, 0).
-        set targ_gs to targ:groundspeed.
+        set ds to round(max(ship:groundspeed - targ:groundspeed, 0), 2).
+        set targ_gs to round(targ:groundspeed, 2).
     }
     else if targ:istype("geocoordinates"){
         set ds to ship:groundspeed.
@@ -50,18 +50,16 @@ function _closing_speed{
     else{
         return 0.
     }
-    local k is (ds - 1) / (ds * 2).				    //k
-    local x is targ:distance - distance.		  //x
-
+    
     if targ:distance < distance{              //we are reached the goal distance
         return round(targ_gs, 1).             //equalize speed
     }
-
                 //we are almost reached the goal distance. the excess speed decreasing
     else if targ:distance > distance and targ:distance < distance + 2 * ds{
+        local k is (ds - 1) / (ds * 2).				    //k
+        local x is targ:distance - distance.		  //x
         return round(k * x + 1, 1).
     }
-
                 // we are far from targ
     else if targ:distance > 2 * ds + distance{
         return round(min((targ_gs + speed), maxspeed), 1).

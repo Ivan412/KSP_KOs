@@ -80,6 +80,7 @@ function pids_upd_and_apply{
             set df to pids[pid]["pid"]:update(time:seconds, pids[pid]["curr_setpoint"]:call).
             //calculate new force
             set force to df + pids[pid]["get_val_driver"]:call.
+            //set force to pids[pid]["get_val_driver"]:call.
             //apply force to driver
             pids[pid]["set_val_driver"]:call(force).
         }
