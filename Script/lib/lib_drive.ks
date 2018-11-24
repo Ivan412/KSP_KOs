@@ -1,12 +1,10 @@
-//VERSION 0.5
-//===============================ФУНКЦИИ==========================
-//это библиотека для движений роверов
+//VERSION 0.51
+//===============================FUNCTIONS==========================
 
 
-//инициализация глобальных переменных
 function _init_lib_drive{
     runoncepath("lib/lib_pid.ks").
-    global route is list().		//очередь точек маршрута
+    global route is list().		                 //list of navpoints
 }
 
 
@@ -21,9 +19,7 @@ function _target_type_ok{
 }
 
 
-//вычисляет "знак" скорости
 function _speed_sign{
-
     if vang(ship:facing:forevector, ship:srfprograde:forevector) > 90{
         return -1.
     }
@@ -33,88 +29,75 @@ function _speed_sign{
 }
 
 
-//вычисляет значение скорости при приближении, по формуле y=kx+b
+//calculate approach speed(y=kx+b)
 function _closing_speed{
-    parameter targ.					  	//цель
-    parameter distance.					//дистанция приближения
-    parameter speed.				  	//желаемое превышение скорости
+    parameter targ.					  	//target
+    parameter distance.					//distance to target to wich aspire
+    parameter speed.				  	//excess over targ's speed(for approch to the targ)
 
-    local ds is 0.
-    local targ_gs is 0.
-    local maxspeed is 25.					//максимальная скорость. если цель движется
-                                  //быстрее(прямо от нас), мы ее не догоним
+    local ds is 0.              //speed delta
+    local targ_gs is 0.         //targ's ground speed
+    local maxspeed is 25.				//software speed limit
 
-								//устанавливаем локальные переменные в зависимости от типа
     if targ:istype("vessel"){
-        //разница скоростей, если цель быстрее, жмем на педаль )
         set ds to max(ship:groundspeed - targ:groundspeed, 0).
-        set targ_gs to targ:groundspeed.			//наземная скорость цели
+        set targ_gs to targ:groundspeed.
     }
     else if targ:istype("geocoordinates"){
-        //разница скоростей = нашей скорости, тк геокоординаты не могут двигаться
         set ds to ship:groundspeed.
         set targ_gs to 0.
     }
     else{
         return 0.
     }
-    local k is (ds - 1) / (ds * 2).				//k
-    local x is targ:distance - distance.		//x
+    local k is (ds - 1) / (ds * 2).				    //k
+    local x is targ:distance - distance.		  //x
 
-								//если мы ближе чем планировали, сравниваем скорости.
-    if targ:distance < distance{
-        return round(targ_gs, 1).
+    if targ:distance < distance{              //we are reached the goal distance
+        return round(targ_gs, 1).             //equalize speed
     }
-								//если до требуемой дальности осталось меньше чем две скорости превышения
-								//уменьшаем скорость по формуле y=kx+b, где скорость превышения(y)
-								//вычисляется из: k - коэффициент, x - расстояние до требуемой
-								//дистанции, b = 1.
+
+                //we are almost reached the goal distance. the excess speed decreasing
     else if targ:distance > distance and targ:distance < distance + 2 * ds{
         return round(k * x + 1, 1).
     }
-								//если до требуемой дальности до цели больше, чем 2 скорости превышения,
-								//едем с желаемой скоростью превышения или максимальной
+
+                // we are far from targ
     else if targ:distance > 2 * ds + distance{
         return round(min((targ_gs + speed), maxspeed), 1).
     }
 }
 
 
-//функция добавления точек в маршрут.
 function route_add_wp{
-    parameter route_l.					//список точек маршрута
-    parameter targ.					    //цель
-    parameter speed is 25.			//превышение скорости над целью
-    parameter distance is 20.		//дистанция на которой скорость становится как у цели
-    parameter follow is false.	//нужно ли следавать за целью
+    parameter route_l.					//route-list
+    parameter targ.					    //target
+    parameter speed is 25.			//excess over targ's speed
+    parameter distance is 20.		//distance of speed equalization
+    parameter follow is false.	//should we follow for the target?
 
-    local wp is lexicon().  //точка маршрута. словарь. доступ по ключам:
-                            //"targ": ссылка на функцию, возвращает место, куда едем,
-					                  //"speed": желаемое превышение скорости,
-                            //"distance": расстояние при достижении которого
-					                  //происходит переключение на следующую точку маршрута
-                            //или остановка(если точек больше нет),
-					                  //"follow": bool если true, то мы едем за целью.
-					                  //"on_way": bool выполняется ли текущая точка маршрута .
+    local wp is lexicon().  //waypoint. lexicon. keys are:
+                            //"targ": KOSDelegate, returns geocoordinates where we are going
+					                  //"speed": excess speed,
+                            //"distance": distance to switch to the next waypoint
+					                  //"follow": should we follow for the target?
+					                  //"on_way": bool. to this piont we are going
 
     if not _target_type_ok(targ){
         print("Wrong type of target!").
         return route_l.
     }
-    set wp["targ"] to targ.					  //устанавливаем цель
-    //устанавливаем желаемое превышение скорости над целью
+    set wp["targ"] to targ.
     set wp["speed"] to _closing_speed@:bind(targ, distance, speed).
-    //устанавливаем желаемую дистанцию(точность) до цели
     set wp["distance"] to max(distance, 20).
-    if wp["targ"]:istype("vessel"){	  //устанавливаем флаг следования
+    if wp["targ"]:istype("vessel"){
         set wp["follow"] to follow.
     }
     else{
         set wp["follow"] to false.
     }
-    set wp["on_way"] to false.				//устанавливаем флаг текущей точки
-
-    route_l:add(wp).							    //добавляем waypoint в очередь
+    set wp["on_way"] to false.
+    route_l:add(wp).
     return route_l.
 }
 
@@ -123,31 +106,31 @@ function drive{
     parameter route_l.
 
     local current_waypoint is 0.
-								//если маршрут пуст - ничего не делаем
+
     if route_l:empty{
         return route_l.
     }
-								//если точка "не в пути", создаем пиды, помечаем точку как "в пути"
+								//next waypoint is not "on_way". creating PIDs, set "on_way" on
     else if not route_l[0]["on_way"]{
         brakes off.
         pid_add(pids, "speed", route_l[0]["speed"], {return ship:groundspeed * _speed_sign.}, {return ship:control:wheelthrottle.}, {parameter a. set SHIP:CONTROL:WHEELTHROTTLE to a.}, true, 1/10, 0, 1/10, -1, 1).
         pid_add(pids, "cource", {return 0.}, {return route_l[0]["targ"]:bearing.}, {return ship:control:wheelsteer.}, {parameter a. set ship:control:wheelsteer to max(min(a, 5/10), -5/10).}, true, 1/1000, 0, 5/10000, -5/10, 5/10).
         set route_l[0]["on_way"] to true.
     }
-								//если мы достигли точки, удаляем ее из маршрута, удаляем пиды
+								//waypoint reached. remove PIDs and waypiont
     else if route_l[0]["targ"]:distance < route_l[0]["distance"] and not route_l[0]["follow"]{
         route_l:remove(0).
-        pid_change(pids, "speed", -1).
-        pid_change(pids, "cource", -1).
+        pid_mode(pids, "speed", -1).
+        pid_mode(pids, "cource", -1).
         brakes on.
         return route_l.
     }
-								//если мы не достигли точки, или она отдалилась отключаем тормоз
+								//waypoint not reached yet, or moved away
     else if route_l[0]["targ"]:distance > route_l[0]["distance"]{
         brakes off.
         return route_l.
     }
-								//мы достигли точки за которой следуем, надо подождать на ручнике
+								//waypoint reached in follow mode. brakes on
     else if route_l[0]["targ"]:distance < route_l[0]["distance"] and route_l[0]["follow"]{
         brakes on.
         return route_l.
@@ -157,11 +140,11 @@ function drive{
 }
 
 
-//===============================ТРИГГЕРЫ=========================
-//===============================ОСНОВНОЕ ТЕЛО====================
+//===============================TRIGGERS=========================
+//===============================BODY====================
 
 
 _init_lib_drive().
 
 
-//===============================ОСНОВНОЙ ЦИКЛ====================
+//===============================MAIN LOOP====================
